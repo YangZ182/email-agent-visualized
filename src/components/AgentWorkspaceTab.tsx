@@ -88,15 +88,45 @@ export const AgentWorkspaceTab: React.FC = () => {
     );
     setNotice("已将本通知转为待回复 (Respond)，并由 Respond Agent 起草。");
     setTimeout(() => setNotice(null), 3000);
-    const updated = emails.find((e) => e.id === emailId);
-    if (updated) {
-      runWorkflowAnimation({ ...updated, expectedCategory: 'respond' });
-    }
+
+    // 触发流程图通过“转为回复”向下的连线流转到 Respond Agent
+    setIsRunning(true);
+    const sequence = ['fetch', 'triage_router', 'triage_interrupt', 'notify_to_respond', 'respond_agent_subgraph', 'llm_call', 'interrupt_handler', 'send_email_tool', 'mark_as_read_node'];
+    let idx = 0;
+    const timer = setInterval(() => {
+      idx += 1;
+      if (idx < sequence.length) {
+        setActiveNode(sequence[idx]);
+        setCompletedNodes(sequence.slice(0, idx));
+      } else {
+        clearInterval(timer);
+        setActiveNode(null);
+        setCompletedNodes(sequence);
+        setIsRunning(false);
+      }
+    }, 450);
   };
 
   const handleNotifyIgnore = (emailId: string) => {
-    // 遵照要求：处理完这条就应该消失
-    setEmails((prev) => prev.filter((e) => e.id !== emailId));
+    // 触发流程图通过“已知悉”向上的连线流转到 mark_as_read_node
+    setIsRunning(true);
+    const sequence = ['fetch', 'triage_router', 'triage_interrupt', 'notify_to_ignore', 'mark_as_read_ignore'];
+    let idx = 0;
+    const timer = setInterval(() => {
+      idx += 1;
+      if (idx < sequence.length) {
+        setActiveNode(sequence[idx]);
+        setCompletedNodes(sequence.slice(0, idx));
+      } else {
+        clearInterval(timer);
+        setActiveNode(null);
+        setCompletedNodes(sequence);
+        setIsRunning(false);
+        // 遵照要求：处理完这条就应该消失
+        setEmails((prev) => prev.filter((e) => e.id !== emailId));
+      }
+    }, 350);
+
     setNotice("已处理通知并标记已读，该邮件已移出未读列表。");
     setTimeout(() => setNotice(null), 3000);
   };
@@ -237,10 +267,54 @@ export const AgentWorkspaceTab: React.FC = () => {
               <div className="text-[10px] opacity-75 font-mono">三分类路由</div>
             </div>
 
-            {/* 三路分流分支 */}
-            <div className="flex flex-col gap-2 pl-2">
+            {/* 连线分支：从“三分类路由”发散连接到 ignore / notify / respond */}
+            <div className="shrink-0 w-9 h-[126px] relative flex items-center">
+              <svg className="w-9 h-[126px] overflow-visible" viewBox="0 0 36 126">
+                <defs>
+                  <marker id="arrow-tree-ignore" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                    <path d="M 0 1 L 10 5 L 0 9 z" fill={isLit('mark_as_read_ignore') ? '#1e293b' : '#94a3b8'} />
+                  </marker>
+                  <marker id="arrow-tree-notify" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                    <path d="M 0 1 L 10 5 L 0 9 z" fill={isLit('triage_interrupt') ? '#d97706' : '#94a3b8'} />
+                  </marker>
+                  <marker id="arrow-tree-respond" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                    <path d="M 0 1 L 10 5 L 0 9 z" fill={isLit('respond_agent_subgraph') ? '#059669' : '#94a3b8'} />
+                  </marker>
+                </defs>
+                {/* 连线 1: 到 ignore (上方) */}
+                <path
+                  d="M 0 58 C 16 58, 16 16, 32 16"
+                  fill="none"
+                  stroke={isLit('mark_as_read_ignore') ? '#1e293b' : '#cbd5e1'}
+                  strokeWidth={isLit('mark_as_read_ignore') ? '2.5' : '1.5'}
+                  markerEnd="url(#arrow-tree-ignore)"
+                  className="transition-colors duration-300"
+                />
+                {/* 连线 2: 到 notify (居中) */}
+                <path
+                  d="M 0 58 L 32 58"
+                  fill="none"
+                  stroke={isLit('triage_interrupt') ? '#d97706' : '#cbd5e1'}
+                  strokeWidth={isLit('triage_interrupt') ? '2.5' : '1.5'}
+                  markerEnd="url(#arrow-tree-notify)"
+                  className="transition-colors duration-300"
+                />
+                {/* 连线 3: 到 respond (下方) */}
+                <path
+                  d="M 0 58 C 16 58, 16 104, 32 104"
+                  fill="none"
+                  stroke={isLit('respond_agent_subgraph') ? '#059669' : '#cbd5e1'}
+                  strokeWidth={isLit('respond_agent_subgraph') ? '2.5' : '1.5'}
+                  markerEnd="url(#arrow-tree-respond)"
+                  className="transition-colors duration-300"
+                />
+              </svg>
+            </div>
+
+            {/* 三路分流分支主体 */}
+            <div className="flex flex-col gap-2">
               {/* 分支 1: ignore */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 h-8">
                 <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded transition-colors ${
                   isLit('mark_as_read_ignore') ? 'bg-slate-800 text-white' : 'bg-slate-100 text-slate-400'
                 }`}>
@@ -261,7 +335,7 @@ export const AgentWorkspaceTab: React.FC = () => {
               </div>
 
               {/* 分支 2: notify */}
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 h-8">
                 <span className={`text-[10px] font-mono font-bold px-1.5 py-0.5 rounded transition-colors ${
                   isLit('triage_interrupt') ? 'bg-amber-600 text-white' : 'bg-slate-100 text-slate-400'
                 }`}>
@@ -278,6 +352,55 @@ export const AgentWorkspaceTab: React.FC = () => {
                   }`}
                 >
                   🔔 triage_interrupt_handler (等待人工知悉 / 转为回复)
+                </div>
+
+                {/* 连线分支：从 notify 右侧连向顶部的 ignore (已知悉) 或底部的 respond (转为回复) */}
+                <div className="flex items-center gap-1.5 pl-1 shrink-0">
+                  <svg className="w-8 h-20 overflow-visible" viewBox="0 0 32 80">
+                    <defs>
+                      <marker id="arrow-notify-up" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                        <path d="M 0 1 L 10 5 L 0 9 z" fill={isLit('notify_to_ignore') ? '#1e293b' : '#94a3b8'} />
+                      </marker>
+                      <marker id="arrow-notify-down" viewBox="0 0 10 10" refX="6" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+                        <path d="M 0 1 L 10 5 L 0 9 z" fill={isLit('notify_to_respond') ? '#059669' : '#94a3b8'} />
+                      </marker>
+                    </defs>
+                    {/* 向上连线至 ignore */}
+                    <path
+                      d="M 0 40 C 14 40, 14 6, 28 6"
+                      fill="none"
+                      stroke={isLit('notify_to_ignore') ? '#1e293b' : '#cbd5e1'}
+                      strokeWidth={isLit('notify_to_ignore') ? '2.5' : '1.5'}
+                      markerEnd="url(#arrow-notify-up)"
+                      className="transition-colors duration-300"
+                    />
+                    {/* 向下连线至 respond */}
+                    <path
+                      d="M 0 40 C 14 40, 14 74, 28 74"
+                      fill="none"
+                      stroke={isLit('notify_to_respond') ? '#059669' : '#cbd5e1'}
+                      strokeWidth={isLit('notify_to_respond') ? '2.5' : '1.5'}
+                      markerEnd="url(#arrow-notify-down)"
+                      className="transition-colors duration-300"
+                    />
+                  </svg>
+
+                  <div className="flex flex-col justify-between h-20 py-0.5 text-[10px] font-mono">
+                    <span className={`px-1.5 py-0.5 rounded border transition-colors ${
+                      isLit('notify_to_ignore')
+                        ? 'bg-slate-800 text-white border-slate-800 font-bold'
+                        : 'bg-slate-50 text-slate-500 border-slate-200'
+                    }`}>
+                      &uarr; 已知悉 &rarr; 归档已读
+                    </span>
+                    <span className={`px-1.5 py-0.5 rounded border transition-colors ${
+                      isLit('notify_to_respond')
+                        ? 'bg-emerald-600 text-white border-emerald-600 font-bold'
+                        : 'bg-emerald-50 text-emerald-800 border-emerald-200'
+                    }`}>
+                      &darr; 转为回复 &rarr; 起草子图
+                    </span>
+                  </div>
                 </div>
               </div>
 
