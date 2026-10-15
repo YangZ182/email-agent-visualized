@@ -1,0 +1,6 @@
+{
+  "name": "AutoMail Agent Studio - Production LangGraph & Streamlit Workbench",
+  "description": "Production-grade LangGraph Email Agent platform featuring real-time observability tracing, Git-style diff HITL review with preference rule extraction, and evaluation dashboard with confusion matrix.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
